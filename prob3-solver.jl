@@ -6,8 +6,8 @@
 # Pkg.add("LightGraphs")
 # Pkg.add("BenchmarkTools")
 
-using Formatting
-using LinearAlgebra
+# using Formatting
+# using LinearAlgebra
 
 module PROBLEM_3
     using JuMP
@@ -16,7 +16,7 @@ module PROBLEM_3
     using LightGraphs
     using BenchmarkTools
 
-    # grb_env = Gurobi.Env()
+    grb_env = Gurobi.Env()
 
 
     #   =======================
@@ -55,19 +55,13 @@ module PROBLEM_3
     #   ================
     #   Leitura de dados
     #   ================
-
-
-#   instance_file = "instances/instance_12_17.dat"
-    instance_file = "instances/instance_50_300.dat"
-#     instance_file = "instances/instance_200_1980.dat"
-#     instance_file = "instances/instance_500_6225.dat"
-#     instance_file = "instances/instance_10000_19800.dat"
+    instance_file = ARGS[1]
     data = readdlm(instance_file, ' ', UInt)
 
     println("===================")
     println("-> Construindo Instância para {", instance_file, "}..."); println("")
     problem = @btime(build_instance(data))
-    print_instance(problem)
+#     print_instance(problem)
     println("==================="); println("")
 
 
@@ -76,7 +70,8 @@ module PROBLEM_3
     #   ==========
 
 
-    model = Model(GLPK.Optimizer)
+    model = Model(() -> Gurobi.Optimizer(grb_env))
+#     model = Model(GLPK.Optimizer)
 
     #   ---------
     #   Constantes
@@ -187,10 +182,10 @@ module PROBLEM_3
     #   --------
     @objective(model, Max, sum(C))
 
-    println("===================")
-    println("-> Modelo formulado:"); println("")
-    print(model)
-    println("==================="); println("")
+#     println("===================")
+#     println("-> Modelo formulado:"); println("")
+#     print(model)
+#     println("==================="); println("")
 
     println("===================")
     println("-> Otimizando..."); println("")
@@ -199,6 +194,6 @@ module PROBLEM_3
 
     write_to_file(model, "model.lp")
 
-    @show objective_value(model)
+#     @show objective_value(model)
 
 end # module
