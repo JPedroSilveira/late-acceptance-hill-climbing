@@ -16,7 +16,7 @@ module PROBLEM_3
     using LightGraphs
     using BenchmarkTools
 
-    grb_env = Gurobi.Env()
+    # grb_env = Gurobi.Env()
 
 
     #   =======================
@@ -32,7 +32,6 @@ module PROBLEM_3
 
     function print_instance(problem)
         println.("", edges(problem.G))
-#         println.()
     end
 
     function build_instance(data)
@@ -44,13 +43,13 @@ module PROBLEM_3
         for line = 2:size(data, 1)
             A[data[line, 1], data[line, 2]] = 1
             A[data[line, 2], data[line, 1]] = 1
-        end # for
+        end
 
         G = DiGraph(A)
         instance = Problem_3(G, 0)
 
         return instance
-    end # build_instance
+    end
 
 
     #   ================
@@ -58,7 +57,8 @@ module PROBLEM_3
     #   ================
 
 
-    instance_file = "instances/instance_12_17.dat"
+#   instance_file = "instances/instance_12_17.dat"
+    instance_file = "instances/instance_50_300.dat"
 #     instance_file = "instances/instance_200_1980.dat"
 #     instance_file = "instances/instance_500_6225.dat"
 #     instance_file = "instances/instance_10000_19800.dat"
@@ -76,7 +76,7 @@ module PROBLEM_3
     #   ==========
 
 
-    model = Model(() -> Gurobi.Optimizer(grb_env))
+    model = Model(GLPK.Optimizer)
 
     #   ---------
     #   Constantes
@@ -105,57 +105,79 @@ module PROBLEM_3
     #          vértice com caixa.
     #   -> d2 e d3: Representam as arestas do grafo.
     # TODO: lembrar que na 1a dimensão o indice inicial está deslocado em 1 unidade para cima
-    @variable(model, A[1:n-1, 1:n, 1:n], Bin)
-
-    @variable(model, Mozao, Int)
+    @variable(model, A[1:n, 1:n, 1:n], Bin)
 
     #   ----------
     #   Restrições
     #   ----------
     @constraint(model, C[1] == 0)
 
-    for i in 1:n-1          # d1
-#         Mozao == M * (1 - C[i + 1])
-#         @constraint(model, Mozao == M * (1 - C[i + 1]))
-
-        for j in 1:n         # d2
-            for k in 1:n     # d3
-                @constraint(model, A[i, j, k] <= has_edge(problem.G, j, k))
+    for i in 2:n # d1
+        for j in 1:n # d2
+            for k in 1:n # d3
+                @constraint(model, A[i, j, k] <= has_edge(problem.G, j, k) * (1 - C[j]))
             end
-
-            # ====================
-            # Conservação de Fluxo
-            # ====================
-
-            # Par que restringe:
-            #
-            #   -> Ao valor de um: a quantidade de arestas que saem
-            #      de um vértice qualquer 'j'.
-            #   -> Ao valor de um: a quantidade de arestas que entram
-            #      em um vértice qualquer 'j'.
-            @constraint(model, sum(A[i, 2:n, 2:n]) - sum(A[i, 2:n, 2:n]) >= 0 - M * (1 - C[i + 1]))
-            @constraint(model, sum(A[i, 2:n, 2:n]) - sum(A[i, 2:n, 2:n]) <= 0 + M * (1 - C[i + 1]))
-
-
-            # Par que restringe:
-            #
-            #   -> Ao valor de um: a quantidade de arestas do
-            #      vértice original à qualquer outro vértice.
-            #   -> Ao valor de zero: a quantidade de arestas de
-            #      qualquer outro vértice ao vértice original.
-            @constraint(model, sum(A[i, 1, :]) - sum(A[i, j, :]) >= 1 - M * (1 - C[i + 1]))
-            @constraint(model, sum(A[i, 1, :]) - sum(A[i, j, :]) <= 1 + M * (1 - C[i + 1]))
-
         end
+    end
 
-        # Par que restringe:
-        #
-        #   -> Ao valor de um: a quantidade de arestas de
-        #      qualquer outro vértice ao vértice destino.
-        #   -> Ao valor de zero: a quantidade de arestas do
-        #      vértice destino à qualquer outro vértice.
-        @constraint(model, sum(A[i, i + 1, :]) - sum(A[i, :, i + 1]) >= -1 - M * (1 - C[i + 1]))
-        @constraint(model, sum(A[i, i + 1, :]) - sum(A[i, :, i + 1]) <= -1 + M * (1 - C[i + 1]))
+    # ====================
+    # Conservação de Fluxo
+    # ====================
+
+    # Par que restringe:
+    #
+    #   -> Ao valor de um: a quantidade de arestas que saem
+    #      de um vértice qualquer 'j'.
+    #   -> Ao valor de um: a quantidade de arestas que entram
+    #      em um vértice qualquer 'j'.
+    for i in 2:n # d1   
+        for j in 2:n
+            if j != i
+                @constraint(model, 
+                    sum(A[i, j, :]) - sum(A[i, :, j]) 
+                    >= 0 - M * (1 - C[i])
+                )
+                @constraint(model, 
+                    sum(A[i, j, :]) - sum(A[i, :, j]) 
+                    <= 0 + M * (1 - C[i])
+                )
+            end
+        end
+    end
+
+
+    # Par que restringe:
+    #
+    #   -> Ao valor de um: a quantidade de arestas do
+    #      vértice original à qualquer outro vértice.
+    #   -> Ao valor de zero: a quantidade de arestas de
+    #      qualquer outro vértice ao vértice original.
+    for i in 2:n # d1      
+        @constraint(model, 
+            sum(A[i, 1, :]) - sum(A[i, :, 1]) 
+            >= 1 - M * (1 - C[i])
+        )
+        @constraint(model, 
+            sum(A[i, 1, :]) - sum(A[i, :, 1]) 
+            <= 1 + M * (1 - C[i])
+        )
+    end
+
+    # Par que restringe:
+    #
+    #   -> Ao valor de um: a quantidade de arestas de
+    #      qualquer outro vértice ao vértice destino.
+    #   -> Ao valor de zero: a quantidade de arestas do
+    #      vértice destino à qualquer outro vértice.
+    for i in 2:n # d1   
+        @constraint(model, 
+            sum(A[i, i, :]) - sum(A[i, :, i]) 
+            >= -1 - M * (1 - C[i])
+        )
+        @constraint(model, 
+            sum(A[i, i, :]) - sum(A[i, :, i]) 
+            <= -1 + M * (1 - C[i])
+        )
     end
 
     set_time_limit_sec(model, 60.0 * 5) # limite 5 minutos
@@ -175,5 +197,8 @@ module PROBLEM_3
     optimize!(model)
     println("==================="); println("")
 
+    write_to_file(model, "model.lp")
+
+    @show objective_value(model)
 
 end # module
