@@ -2,8 +2,7 @@ from sys import argv
 import numpy as np
 import networkx as nx
 
-
-def build_instance(instance_file: str) -> nx.Graph:
+def build_instance(instance_file: str) -> nx.DiGraph:
     data = np.loadtxt(instance_file, dtype=int)
     n = data[0, 0] # Número de vértices
     m = data[0, 1] # Número de arestas
@@ -22,28 +21,75 @@ def build_instance(instance_file: str) -> nx.Graph:
 
     assert nx.number_of_nodes(G) == n
     assert nx.number_of_edges(G) == m
+
+    G = nx.to_directed(G)
+    assert type(G) == nx.DiGraph
     return G
+
 
 class PossibleSolution:
     def __init__(self, boxes: np.ndarray):
-        self.boxes = boxes  # Lista binária que determina quais nodos possuem caixas
-        self.value = self.evaluate()    # Valoração calculada para a solução
+        self.boxes = boxes  # Lista booleana que determina quais nodos possuem caixas
+        self.value = -1     # Valoração calculada para a solução
 
-    def evaluate(self) -> int:
+    def is_valid(self, graph:nx.DiGraph) -> bool:
+        print('Nodes: ', nx.nodes(graph))
+        print('Boxes: ', self.boxes)
+
+        graph_copy = graph.copy()
+
+        boxed_nodes = []
+        for node in nx.nodes(graph):
+            if self.boxes[node]:
+                boxed_nodes.append(node)
+                out_edges = graph_copy.out_edges(node)
+                print(f'Out Edges from {node}: {out_edges}')
+                for edge in list(out_edges):
+                    graph_copy.remove_edge(*edge)
+
+
+        print(boxed_nodes)
+        for boxed_node in boxed_nodes:
+            reachable = nx.has_path(graph_copy, 0, boxed_node)
+            print(f'Has Path to {boxed_node}: {reachable}')
+            input()
+            if not reachable:
+                return False
+        return True
+
+    def evaluate(self, graph:nx.Graph): # -> self
         # if solucao_valida -> sum
         # else              -> -1
-        return sum(self.boxes)
+        if not self.is_valid(graph): self.value = -1
+        self.value = sum(self.boxes)
+        return self
 
-    def generate_random_neighbor(self):
-        raise NotImplementedError
+    def generate_random_neighbor(self, graph: nx.DiGraph): # -> PossibleSolution
+
+        # Random Neighborhood
+        random_mask = np.concatenate(
+            ([False], np.random.choice([True, False], len(self.boxes) - 1)),
+            axis=0)
+        print('Mask: ', random_mask)
+
+        applied = np.logical_xor(self.boxes, random_mask)
+        print('Applied mask:', applied)
+
+        neighbor = PossibleSolution(applied).evaluate(graph)
+        print('Neighbor: ', neighbor)
+
+        return neighbor
+        # raise NotImplementedError
 
     def __repr__(self):
         str_return = ''
-        for i in range(len(self.boxes)):
-            if self.boxes[i] == 1: label = 'Com caixa'
-            else: label = 'Sem Caixa'
+        # for i in range(len(self.boxes)):
+        #     if self.boxes[i] == 1: label = 'Com caixa'
+        #     else: label = 'Sem Caixa'
+        #
+        #     str_return += f'\n\tVértice {i+1} -> {label}'
 
-            str_return += f'\n\tVértice {i+1} -> {label}'
+        str_return += str(self.boxes)
 
         if self.value == -1:
             str_return += f'\n-> INSTÂNCIA INVÁLIDA'
@@ -63,13 +109,12 @@ class Problem3:
         #   =============================
         self.graph = instance_graph
 
-        if S is not None:
+        if S is not None: # Caso uma solução inicial tenha sido dada
             assert len(S) == nx.number_of_nodes(self.graph)
-            S = PossibleSolution(S)
+            S = PossibleSolution(S).evaluate(self.graph)
         else: # Solução atual começa vazia
-            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph))
-
-        self.S = S
+            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph)).evaluate(self.graph)
+        self.S = S      # Solucão inicial
         self.S_star = S # Solução ótima
         self.l = l      # Tamanho da lista histórico de soluções geradas
         self.m = m      # Máximo de rejeições consecutivas
@@ -97,10 +142,10 @@ e solução inicial:{self.S}''')
 
         while self.r <= self.m:
 
-            s_ = self.S.generate_random_neighbor()
+            s_ = self.S.generate_random_neighbor(self.graph)
             print('Solução Candidata:', self.S)
 
-            if s_.value >= self.S.value or s_.value >= self.F[p]:
+            if s_.value >= self.S.value or s_.value >= self.F[p].value:
 
                 print('-> Solução aceita.')
 
@@ -111,7 +156,7 @@ e solução inicial:{self.S}''')
                 self.S = s_
                 self.update_F(p)
 
-                if self.S > self.S_star:
+                if self.S.value > self.S_star.value:
                     print('\t', '*'*16)
                     print('-> Melhor solução encontrada!')
                     print('\t', '*' * 16)
@@ -122,7 +167,7 @@ e solução inicial:{self.S}''')
 
             print(
                 f'''Variáveis ao fim da iteração:
-    -> F = {self.F}
+    -> F = {[i.value for i in self.F]}
     -> r = {self.r}'''
             )
 
