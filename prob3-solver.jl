@@ -1,21 +1,17 @@
 # import Pkg;
 # Pkg.add("JuMP")
 # Pkg.add("Gurobi")
-# Pkg.add("Formatting")
 # Pkg.add("DelimitedFiles")
 # Pkg.add("LightGraphs")
 # Pkg.add("BenchmarkTools")
 
-# using Formatting
-# using LinearAlgebra
-
 module PROBLEM_3
     using JuMP
-    using Gurobi
     using DelimitedFiles
     using LightGraphs
     using BenchmarkTools
 
+    using Gurobi
     grb_env = Gurobi.Env()
 
 
@@ -71,7 +67,6 @@ module PROBLEM_3
 
 
     model = Model(() -> Gurobi.Optimizer(grb_env))
-#     model = Model(GLPK.Optimizer)
 
     #   ---------
     #   Constantes
@@ -189,11 +184,9 @@ module PROBLEM_3
 
     println("===================")
     println("-> Otimizando..."); println("")
-    optimize!(model)
+    @btime(optimize!(model))
     println("==================="); println("")
 
     write_to_file(model, "model.lp")
-
-#     @show objective_value(model)
 
 end # module
