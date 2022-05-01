@@ -1,5 +1,6 @@
 from sys import argv
 import numpy as np
+from regex import W
 import networkx as nx
 
 
@@ -33,7 +34,7 @@ class PossibleSolution:
         self.boxes = boxes  # Lista booleana que determina quais nodos possuem caixas
         self.value = -1  # Valoração calculada para a solução
 
-    def is_valid(self, graph: nx.DiGraph) -> bool:
+    def turn_valid(self, graph: nx.DiGraph):
         # print("Nodes: ", nx.nodes(graph))
         # print("Boxes: ", self.boxes)
 
@@ -54,16 +55,13 @@ class PossibleSolution:
             # print(f"Has Path to {boxed_node}: {reachable}")
             # input()
             if not reachable:
-                return False
-        return True
+                self.boxes[boxed_node] = False
+                out_edges = graph.out_edges(boxed_node)
+                for edge in list(out_edges):
+                    graph_copy.add_edge(*edge)
 
-    def evaluate(self, graph: nx.Graph):  # -> self
-        # if solucao_valida -> sum
-        # else              -> -1
-        if not self.is_valid(graph):
-            self.value = -1
-        else:
-            self.value = sum(self.boxes)
+        self.value = sum(self.boxes)
+
         return self
 
     def generate_random_neighbor(self, graph: nx.DiGraph):  # -> PossibleSolution
@@ -72,13 +70,22 @@ class PossibleSolution:
         while value == -1:
             # Random Neighborhood
             random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
+
+            # random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
             # print("Mask: ", random_mask)
 
-            applied = np.logical_xor(self.boxes, random_mask)
+            # applied = np.logical_or(self.boxes, random_mask)
+            if np.random.choice([True, False]):
+                applied = np.logical_or(self.boxes, random_mask)
+            else:
+                applied = np.logical_xor(self.boxes, random_mask)
+
             # print("Applied mask:", applied)
 
-            neighbor = PossibleSolution(applied).evaluate(graph)
+            neighbor = PossibleSolution(applied).turn_valid(graph)
             # print("Neighbor: ", neighbor)
+
+            # print("Value ", neighbor.value)
 
             value = neighbor.value
 
@@ -112,9 +119,9 @@ class Problem3:
 
         if S is not None:  # Caso uma solução inicial tenha sido dada
             assert len(S) == nx.number_of_nodes(self.graph)
-            S = PossibleSolution(S).evaluate(self.graph)
+            S = PossibleSolution(S).turn_valid(self.graph)
         else:  # Solução atual começa vazia
-            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph)).evaluate(self.graph)
+            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph)).turn_valid(self.graph)
         self.S = S  # Solucão inicial
         self.S_star = S  # Solução ótima
         self.l = l  # Tamanho da lista histórico de soluções geradas
@@ -169,11 +176,11 @@ e solução inicial:{self.S}"""
             p = (self.r + 1) % self.l
             self.r += 1
 
-            print(
-                f"""Variáveis ao fim da iteração:
-    -> F = {[i.value for i in self.F]}
-    -> r = {self.r}"""
-            )
+        #            print(
+        #                f"""Variáveis ao fim da iteração:
+        #    -> F = {[i.value for i in self.F]}
+        #    -> r = {self.r}"""
+        #            )
 
         print("\n", "=" * 32)
         print(
