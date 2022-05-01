@@ -1,11 +1,13 @@
 from sys import argv
 import numpy as np
+from regex import W
 import networkx as nx
+
 
 def build_instance(instance_file: str) -> nx.DiGraph:
     data = np.loadtxt(instance_file, dtype=int)
-    n = data[0, 0] # Número de vértices
-    m = data[0, 1] # Número de arestas
+    n = data[0, 0]  # Número de vértices
+    m = data[0, 1]  # Número de arestas
     A = np.zeros((n, n))
 
     for i in data[1:]:
@@ -30,11 +32,11 @@ def build_instance(instance_file: str) -> nx.DiGraph:
 class PossibleSolution:
     def __init__(self, boxes: np.ndarray):
         self.boxes = boxes  # Lista booleana que determina quais nodos possuem caixas
-        self.value = -1     # Valoração calculada para a solução
+        self.value = -1  # Valoração calculada para a solução
 
-    def is_valid(self, graph:nx.DiGraph) -> bool:
-        print('Nodes: ', nx.nodes(graph))
-        print('Boxes: ', self.boxes)
+    def turn_valid(self, graph: nx.DiGraph):
+        # print("Nodes: ", nx.nodes(graph))
+        # print("Boxes: ", self.boxes)
 
         graph_copy = graph.copy()
 
@@ -43,46 +45,54 @@ class PossibleSolution:
             if self.boxes[node]:
                 boxed_nodes.append(node)
                 out_edges = graph_copy.out_edges(node)
-                print(f'Out Edges from {node}: {out_edges}')
+                # print(f"Out Edges from {node}: {out_edges}")
                 for edge in list(out_edges):
                     graph_copy.remove_edge(*edge)
 
-
-        print(boxed_nodes)
+        # print(boxed_nodes)
         for boxed_node in boxed_nodes:
             reachable = nx.has_path(graph_copy, 0, boxed_node)
-            print(f'Has Path to {boxed_node}: {reachable}')
-            input()
+            # print(f"Has Path to {boxed_node}: {reachable}")
+            # input()
             if not reachable:
-                return False
-        return True
+                self.boxes[boxed_node] = False
+                out_edges = graph.out_edges(boxed_node)
+                for edge in list(out_edges):
+                    graph_copy.add_edge(*edge)
 
-    def evaluate(self, graph:nx.Graph): # -> self
-        # if solucao_valida -> sum
-        # else              -> -1
-        if not self.is_valid(graph): self.value = -1
         self.value = sum(self.boxes)
+
         return self
 
-    def generate_random_neighbor(self, graph: nx.DiGraph): # -> PossibleSolution
+    def generate_random_neighbor(self, graph: nx.DiGraph):  # -> PossibleSolution
+        value = -1
 
-        # Random Neighborhood
-        random_mask = np.concatenate(
-            ([False], np.random.choice([True, False], len(self.boxes) - 1)),
-            axis=0)
-        print('Mask: ', random_mask)
+        while value == -1:
+            # Random Neighborhood
+            random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
 
-        applied = np.logical_xor(self.boxes, random_mask)
-        print('Applied mask:', applied)
+            # random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
+            # print("Mask: ", random_mask)
 
-        neighbor = PossibleSolution(applied).evaluate(graph)
-        print('Neighbor: ', neighbor)
+            # applied = np.logical_or(self.boxes, random_mask)
+            if np.random.choice([True, False]):
+                applied = np.logical_or(self.boxes, random_mask)
+            else:
+                applied = np.logical_xor(self.boxes, random_mask)
+
+            # print("Applied mask:", applied)
+
+            neighbor = PossibleSolution(applied).turn_valid(graph)
+            # print("Neighbor: ", neighbor)
+
+            # print("Value ", neighbor.value)
+
+            value = neighbor.value
 
         return neighbor
-        # raise NotImplementedError
 
     def __repr__(self):
-        str_return = ''
+        str_return = ""
         # for i in range(len(self.boxes)):
         #     if self.boxes[i] == 1: label = 'Com caixa'
         #     else: label = 'Sem Caixa'
@@ -92,32 +102,30 @@ class PossibleSolution:
         str_return += str(self.boxes)
 
         if self.value == -1:
-            str_return += f'\n-> INSTÂNCIA INVÁLIDA'
+            str_return += f"\n-> INSTÂNCIA INVÁLIDA"
         else:
-            str_return += f'\n-> Quantidade de caixas: {self.value}'
+            str_return += f"\n-> Quantidade de caixas: {self.value}"
 
         return str_return
 
 
 class Problem3:
-    def __init__(self, instance_graph:nx.DiGraph,
-                 S:np.ndarray or None=None,
-                 l:int=10, m:int=20):
+    def __init__(self, instance_graph: nx.DiGraph, S: np.ndarray or None = None, l: int = 10, m: int = 20):
         #   =============================
         #   Parâmetros da Meta-Heurística
         #   Late Acceptance Hill Climbing
         #   =============================
         self.graph = instance_graph
 
-        if S is not None: # Caso uma solução inicial tenha sido dada
+        if S is not None:  # Caso uma solução inicial tenha sido dada
             assert len(S) == nx.number_of_nodes(self.graph)
-            S = PossibleSolution(S).evaluate(self.graph)
-        else: # Solução atual começa vazia
-            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph)).evaluate(self.graph)
-        self.S = S      # Solucão inicial
-        self.S_star = S # Solução ótima
-        self.l = l      # Tamanho da lista histórico de soluções geradas
-        self.m = m      # Máximo de rejeições consecutivas
+            S = PossibleSolution(S).turn_valid(self.graph)
+        else:  # Solução atual começa vazia
+            S = PossibleSolution([0] * nx.number_of_nodes(instance_graph)).turn_valid(self.graph)
+        self.S = S  # Solucão inicial
+        self.S_star = S  # Solução ótima
+        self.l = l  # Tamanho da lista histórico de soluções geradas
+        self.m = m  # Máximo de rejeições consecutivas
 
         #   ==================================
         #   Variáveis de execução do algoritmo
@@ -125,17 +133,19 @@ class Problem3:
         self.r = 0  # Contador de rejeições consecutivas
         self.F = [self.S] * self.l  # Lista de últimas soluções geradas
 
-    def update_F(self, p:int) -> None:
+    def update_F(self, p: int) -> None:
         self.F[p] = self.S
 
     def optimize(self) -> PossibleSolution:
 
-        print('=' * 32)
-        print(f'''Otimizando problema com parâmetros:
+        print("=" * 32)
+        print(
+            f"""Otimizando problema com parâmetros:
     -> l = {self.l}
     -> m = {self.m}
-e solução inicial:{self.S}''')
-        print('-' * 32)
+e solução inicial:{self.S}"""
+        )
+        print("-" * 32)
 
         # Índice 'p' para acessar F
         p = 0
@@ -143,11 +153,12 @@ e solução inicial:{self.S}''')
         while self.r <= self.m:
 
             s_ = self.S.generate_random_neighbor(self.graph)
-            print('Solução Candidata:', self.S)
+            # print("Solução Candidata:", self.S)
+            # print("Value", s_.value)
 
             if s_.value >= self.S.value or s_.value >= self.F[p].value:
 
-                print('-> Solução aceita.')
+                # print("-> Solução aceita.")
 
                 # Aceita nova solução
                 if s_.value > self.S.value:
@@ -157,40 +168,37 @@ e solução inicial:{self.S}''')
                 self.update_F(p)
 
                 if self.S.value > self.S_star.value:
-                    print('\t', '*'*16)
-                    print('-> Melhor solução encontrada!')
-                    print('\t', '*' * 16)
+                    # print("\t", "*" * 16)
+                    # print("-> Melhor solução encontrada!")
+                    # print("\t", "*" * 16)
                     self.S_star = self.S
 
             p = (self.r + 1) % self.l
             self.r += 1
 
-            print(
-                f'''Variáveis ao fim da iteração:
-    -> F = {[i.value for i in self.F]}
-    -> r = {self.r}'''
-            )
+        #            print(
+        #                f"""Variáveis ao fim da iteração:
+        #    -> F = {[i.value for i in self.F]}
+        #    -> r = {self.r}"""
+        #            )
 
-        print('\n', '='*32)
+        print("\n", "=" * 32)
         print(
-            f'''
+            f"""
 Algoritmo LAHC encerrado.
 Solução ótima encontrada:
-    -> {self.S_star}'''
+    -> {self.S_star}"""
         )
-        print('\n', '=' * 32)
+        print("\n", "=" * 32)
         return self.S_star
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     instance_file = argv[1]
     instance_graph = build_instance(instance_file)
-    print(instance_graph)
+    # print(instance_graph)
 
     initial_solution = [0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0]
     prob3 = Problem3(instance_graph)
     optimal = prob3.optimize()
-    #
-    print(optimal)
-
-
+    # print(optimal)
