@@ -34,26 +34,31 @@ class PossibleSolution:
         self.boxes = boxes  # Lista booleana que determina quais nodos possuem caixas
         self.value = -1  # Valoração calculada para a solução
 
-    def turn_valid(self, graph: nx.DiGraph):
-        # print("Nodes: ", nx.nodes(graph))
-        # print("Boxes: ", self.boxes)
 
+    def turn_valid(self, graph: nx.DiGraph):
+        # =================================
+        # Caso a solução não seja factível,
+        #  iremos modificá-la afim de que
+        #       se torne factível
         graph_copy = graph.copy()
 
+
+        # Dada a disposição de caixas atual:
+        # remove os arcos que partem de
+        # vértices com caixa.
         boxed_nodes = []
         for node in nx.nodes(graph):
             if self.boxes[node]:
                 boxed_nodes.append(node)
                 out_edges = graph_copy.out_edges(node)
-                # print(f"Out Edges from {node}: {out_edges}")
                 for edge in list(out_edges):
                     graph_copy.remove_edge(*edge)
 
-        # print(boxed_nodes)
+        # Dado vértices que receberam caixas
+        # e que não são acessíveis a partir da origem:
+        # remove a caixa, re-insere os arcos
         for boxed_node in boxed_nodes:
             reachable = nx.has_path(graph_copy, 0, boxed_node)
-            # print(f"Has Path to {boxed_node}: {reachable}")
-            # input()
             if not reachable:
                 self.boxes[boxed_node] = False
                 out_edges = graph.out_edges(boxed_node)
@@ -61,32 +66,24 @@ class PossibleSolution:
                     graph_copy.add_edge(*edge)
 
         self.value = sum(self.boxes)
-
         return self
 
     def generate_random_neighbor(self, graph: nx.DiGraph):  # -> PossibleSolution
         value = -1
 
+        # =========================
+        # Random Neighborhood com
+        #   aplicação de máscara
+        #    na solução atual
         while value == -1:
-            # Random Neighborhood
             random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
 
-            # random_mask = np.concatenate(([False], np.random.choice([True, False], len(self.boxes) - 1)), axis=0)
-            # print("Mask: ", random_mask)
-
-            # applied = np.logical_or(self.boxes, random_mask)
             if np.random.choice([True, False]):
                 applied = np.logical_or(self.boxes, random_mask)
             else:
                 applied = np.logical_xor(self.boxes, random_mask)
 
-            # print("Applied mask:", applied)
-
             neighbor = PossibleSolution(applied).turn_valid(graph)
-            # print("Neighbor: ", neighbor)
-
-            # print("Value ", neighbor.value)
-
             value = neighbor.value
 
         return neighbor
